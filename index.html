@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIRAVAT 3.0 — Environmental Sentinel</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --high:      #ef4444;
+      --high-bg:   rgba(239,68,68,0.15);
+      --warn:      #f97316;
+      --warn-bg:   rgba(249,115,22,0.15);
+      --normal:    #6b7280;
+      --normal-bg: rgba(107,114,128,0.12);
+      --teal:      #1D9E75;
+      --teal-dim:  #085041;
+      --accent:    #378ADD;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    /* ── Layout shell ── */
+    #app {
+      display: grid;
+      grid-template-rows: 52px 1fr;
+      grid-template-columns: 1fr 380px;
+      grid-template-areas:
+        "header header"
+        "map    panel";
+      height: 100vh;
+    }
+
+    /* ── Header ── */
+    #header {
+      grid-area: header;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 8px var(--teal);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    .header-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+
+    .header-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* simulate button */
+    #btn-simulate {
+      padding: 6px 14px;
+      background: var(--teal-dim);
+      border: 1px solid var(--teal);
+      border-radius: 6px;
+      color: #9FE1CB;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #btn-simulate:hover { background: #0F6E56; }
+    #btn-simulate:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* legend pills */
+    .legend {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ── Map ── */
+    #map {
+      grid-area: map;
+      width: 100%;
+      height: 100%;
+      background: #0a0f1a;
+    }
+
+    /* Override leaflet tile attribution to dark */
+    .leaflet-control-attribution {
+      background: rgba(13,17,23,0.8) !important;
+      color: var(--muted) !important;
+      font-size: 10px !important;
+    }
+
+    .leaflet-control-attribution a { color: var(--muted) !important; }
+
+    /* Custom zone marker circles */
+    .zone-marker-wrap {
+      position: relative;
+    }
+
+    /* ── Side panel ── */
+    #panel {
+      grid-area: panel;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #panel-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 10px;
+      color: var(--muted);
+      padding: 40px;
+      text-align: center;
+    }
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    #panel-content {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    #panel-content.visible { display: flex; }
+
+    /* Panel header */
+    .panel-header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-zone-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .panel-event-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-HIGH    { background: var(--high-bg);   color: var(--high);   border: 1px solid rgba(239,68,68,0.4); }
+    .badge-WARN    { background: var(--warn-bg);   color: var(--warn);   border: 1px solid rgba(249,115,22,0.4); }
+    .badge-NORMAL  { background: var(--normal-bg); color: var(--normal); border: 1px solid rgba(107,114,128,0.3); }
+
+    .event-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Panel body sections */
+    .panel-section {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    /* Step dots */
+    .step-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      transition: background 0.3s, transform 0.3s;
+    }
+
+    .step-dot.filled  { background: var(--teal); }
+    .step-dot.current { background: var(--teal); transform: scale(1.3); box-shadow: 0 0 6px var(--teal); }
+    .step-dot.empty   { background: var(--surface2); border: 1px solid var(--border); }
+
+    .step-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Confidence bar */
+    .conf-bar-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 6px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .conf-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .conf-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 6px;
+    }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .stat-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .stat-value.rising  { color: var(--high); }
+    .stat-value.falling { color: var(--accent); }
+    .stat-value.stable  { color: var(--muted); }
+
+    /* Chart container */
+    .chart-wrap {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .chart-canvas-wrap {
+      position: relative;
+      height: 130px;
+      margin-top: 8px;
+    }
+
+    /* Action box */
+    .action-box {
+      margin: 14px 18px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border-left: 3px solid var(--teal);
+      background: rgba(29,158,117,0.08);
+      font-size: 12px;
+      color: #9FE1CB;
+      line-height: 1.6;
+      flex-shrink: 0;
+    }
+
+    .action-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--teal);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    /* Simulation status bar */
+    #sim-bar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 18px;
+      background: rgba(29,158,117,0.12);
+      border-bottom: 1px solid rgba(29,158,117,0.3);
+      font-size: 11px;
+      color: #9FE1CB;
+      flex-shrink: 0;
+    }
+
+    #sim-bar.active { display: flex; }
+
+    .sim-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: pulse 0.8s ease-in-out infinite;
+    }
+
+    /* Scrollbar styling */
+    #panel-content::-webkit-scrollbar { width: 4px; }
+    #panel-content::-webkit-scrollbar-track { background: transparent; }
+    #panel-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── HEADER ── -->
+  <header id="header">
+    <div class="header-left">
+      <div class="logo-dot"></div>
+      <div>
+        <div class="header-title">AIRAVAT 3.0 — Environmental Sentinel</div>
+        <div class="header-sub">Precursor-aware marine intelligence · Indian Ocean basin</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#ef4444"></div> HIGH alert
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#f97316"></div> Warning
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#6b7280"></div> Normal
+        </div>
+      </div>
+      <button id="btn-simulate">&#9654; Simulate 8-day progression</button>
+    </div>
+  </header>
+
+  <!-- ── MAP ── -->
+  <div id="map"></div>
+
+  <!-- ── SIDE PANEL ── -->
+  <aside id="panel">
+    <div id="panel-empty">
+      <div class="empty-icon">&#9671;</div>
+      <div style="font-size:13px;font-weight:500;color:var(--text)">Select a zone</div>
+      <div style="font-size:12px">Click any marker on the map to view its signature chain, confidence score, and recommended action.</div>
+    </div>
+
+    <div id="panel-content">
+
+      <!-- sim bar -->
+      <div id="sim-bar">
+        <div class="sim-dot"></div>
+        <span id="sim-text">Simulating progression...</span>
+      </div>
+
+      <!-- header -->
+      <div class="panel-header">
+        <div class="panel-zone-name" id="p-zone-name">—</div>
+        <div class="panel-event-row">
+          <span class="badge" id="p-badge">—</span>
+          <span class="event-label" id="p-event-label">—</span>
+        </div>
+      </div>
+
+      <!-- signature chain -->
+      <div class="panel-section">
+        <div class="section-title">Signature chain progress</div>
+        <div class="step-dots" id="p-step-dots"></div>
+        <div class="step-label" id="p-step-label">—</div>
+      </div>
+
+      <!-- confidence -->
+      <div class="panel-section">
+        <div class="section-title">Convergence confidence</div>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar-fill" id="p-conf-bar"></div>
+        </div>
+        <div class="conf-value" id="p-conf-value">—</div>
+      </div>
+
+      <!-- stats grid -->
+      <div class="panel-section">
+        <div class="section-title">Zone metrics</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">SST &Delta; (8-day)</div>
+            <div class="stat-value" id="p-sst-delta">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Trajectory</div>
+            <div class="stat-value" id="p-trajectory">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Priority score</div>
+            <div class="stat-value" id="p-priority">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Event type</div>
+            <div class="stat-value" style="font-size:12px" id="p-event-type">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SST chart -->
+      <div class="chart-wrap">
+        <div class="section-title">SST time-series (°C) — last 8 days</div>
+        <div class="chart-canvas-wrap">
+          <canvas id="sst-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- recommended action -->
+      <div class="action-box">
+        <div class="action-title">Recommended action</div>
+        <div id="p-action">—</div>
+      </div>
+
+    </div>
+  </aside>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let zones      = [];
+let markers    = {};         // id → leaflet marker
+let activeZone = null;
+let sstChart   = null;
+let simInterval = null;
+
+// ─────────────────────────────────────────────
+// MAP INIT
+// ─────────────────────────────────────────────
+const map = L.map('map', {
+  center: [14, 75],
+  zoom: 5,
+  zoomControl: true,
+  attributionControl: true
+});
+
+// Dark ocean tile — CartoDB dark matter
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
+
+// ─────────────────────────────────────────────
+// COLOUR LOGIC
+// ─────────────────────────────────────────────
+function getColor(zone) {
+  if (zone.alert_level === 'HIGH') return '#ef4444';
+  if (zone.alert_level === 'WARN') return '#f97316';
+  return '#6b7280';
+}
+
+function getConfColor(conf) {
+  if (conf >= 0.75) return '#ef4444';
+  if (conf >= 0.50) return '#f97316';
+  return '#1D9E75';
+}
+
+// ─────────────────────────────────────────────
+// CUSTOM MARKER — circle with pulse ring for HIGH
+// ─────────────────────────────────────────────
+function makeIcon(zone) {
+  const color  = getColor(zone);
+  const radius = 16 + zone.confidence * 8;   // bigger = more confident
+  const pulse  = zone.alert_level === 'HIGH'
+    ? `<circle cx="24" cy="24" r="${radius + 6}"
+         fill="none" stroke="${color}" stroke-width="1.5" opacity="0.35">
+         <animate attributeName="r" values="${radius};${radius+10};${radius}"
+           dur="1.8s" repeatCount="indefinite"/>
+         <animate attributeName="opacity" values="0.35;0;0.35"
+           dur="1.8s" repeatCount="indefinite"/>
+       </circle>` : '';
+
+  const step_ratio = zone.current_step / zone.total_steps;
+  // arc background
+  const arcFull  = 2 * Math.PI * radius;
+  const arcFill  = arcFull * step_ratio;
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      ${pulse}
+      <circle cx="24" cy="24" r="${radius}" fill="#161b22" stroke="${color}" stroke-width="2"/>
+      <circle cx="24" cy="24" r="${radius}" fill="none"
+        stroke="${color}" stroke-width="3" stroke-opacity="0.35"
+        stroke-dasharray="${arcFull}" stroke-dashoffset="0"
+        transform="rotate(-90 24 24)"/>
+      <circle cx="24" cy="24" r="${radius}" fill="none"
+        stroke="${color}" stroke-width="3"
+        stroke-dasharray="${arcFill} ${arcFull}"
+        transform="rotate(-90 24 24)"/>
+      <text x="24" y="28" text-anchor="middle"
+        font-family="monospace" font-size="10" font-weight="700"
+        fill="${color}">${zone.current_step}/${zone.total_steps}</text>
+    </svg>`;
+
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    popupAnchor: [0, -28]
+  });
+}
+
+// ─────────────────────────────────────────────
+// DRAW MARKERS
+// ─────────────────────────────────────────────
+function drawMarkers() {
+  // clear existing
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  markers = {};
+
+  zones.forEach(zone => {
+    const marker = L.marker([zone.lat, zone.lng], { icon: makeIcon(zone) }).addTo(map);
+
+    // tooltip (always visible label)
+    marker.bindTooltip(`<b>${zone.name}</b><br>${zone.event_type}`, {
+      permanent: false,
+      direction: 'top',
+      className: 'dark-tip',
+      offset: [0, -28]
+    });
+
+    marker.on('click', () => selectZone(zone.id));
+    markers[zone.id] = marker;
+  });
+}
+
+// ─────────────────────────────────────────────
+// SELECT ZONE — populates right panel
+// ─────────────────────────────────────────────
+function selectZone(id) {
+  activeZone = zones.find(z => z.id === id);
+  if (!activeZone) return;
+
+  // show panel
+  document.getElementById('panel-empty').style.display   = 'none';
+  document.getElementById('panel-content').classList.add('visible');
+
+  renderPanel(activeZone);
+}
+
+function renderPanel(zone) {
+  // name
+  document.getElementById('p-zone-name').textContent = zone.name;
+
+  // badge
+  const badge = document.getElementById('p-badge');
+  badge.textContent = zone.alert_level;
+  badge.className   = `badge badge-${zone.alert_level}`;
+
+  // event label
+  document.getElementById('p-event-label').textContent = zone.event_type;
+
+  // step dots
+  const dotsEl = document.getElementById('p-step-dots');
+  dotsEl.innerHTML = '';
+  for (let i = 0; i < zone.total_steps; i++) {
+    const dot = document.createElement('div');
+    if (i < zone.current_step - 1) {
+      dot.className = 'step-dot filled';
+    } else if (i === zone.current_step - 1) {
+      dot.className = 'step-dot current';
+    } else {
+      dot.className = 'step-dot empty';
+    }
+    dotsEl.appendChild(dot);
+  }
+
+  document.getElementById('p-step-label').textContent =
+    `Step ${zone.current_step} of ${zone.total_steps} — ${getStepDesc(zone)}`;
+
+  // confidence bar
+  const pct   = Math.round(zone.confidence * 100);
+  const color = getConfColor(zone.confidence);
+  document.getElementById('p-conf-bar').style.width      = pct + '%';
+  document.getElementById('p-conf-bar').style.background = color;
+  document.getElementById('p-conf-value').textContent    = pct + '% convergence confidence';
+  document.getElementById('p-conf-value').style.color    = color;
+
+  // stats
+  const delta = zone.sst_delta;
+  document.getElementById('p-sst-delta').textContent =
+    (delta >= 0 ? '+' : '') + delta.toFixed(1) + '°C';
+  document.getElementById('p-sst-delta').className =
+    'stat-value ' + (delta > 0.5 ? 'rising' : delta < -0.5 ? 'falling' : 'stable');
+
+  const trajEl = document.getElementById('p-trajectory');
+  const trajMap = { rising: '↑ Rising', falling: '↓ Falling', stable: '→ Stable' };
+  trajEl.textContent = trajMap[zone.trajectory] || zone.trajectory;
+  trajEl.className   = 'stat-value ' + zone.trajectory;
+
+  document.getElementById('p-priority').textContent    = (zone.priority * 100).toFixed(0) + ' / 100';
+  document.getElementById('p-priority').style.color    = getConfColor(zone.priority);
+  document.getElementById('p-event-type').textContent  = zone.event_type;
+
+  // action
+  document.getElementById('p-action').textContent = zone.recommended_action;
+
+  // chart
+  renderChart(zone);
+}
+
+function getStepDesc(zone) {
+  const descs = {
+    'Thermal stress':       ['Baseline normal','SST rise begins','Sustained warming','Acceleration detected','Thermal anomaly confirmed','Crisis threshold near','Critical — event imminent'],
+    'Hypoxic bloom':        ['Baseline normal','Nutrient loading starts','DO drop observed','Chl-a spike detected','Bloom initiation','Hypoxia spreading','Critical hypoxia'],
+    'Turbidity spike':      ['Baseline normal','Sediment load rising','Visibility drop','High turbidity zone','Event confirmed'],
+    'Oil slick precursor':  ['Baseline normal','SAR anomaly detected','Surface film forming','Spreading confirmed','Slick boundary mapped','Source identified','Containment needed'],
+    'Upwelling':            ['Baseline normal','Cold upwelling starts','SST drop confirmed','Nutrient rich zone','Fishery opportunity','Peak upwelling','Upwelling subsiding'],
+    'Normal':               ['Baseline normal','Slight deviation','Low significance','Below threshold','Minimal concern','Elevated — monitor','Alert']
+  };
+  const list = descs[zone.event_type] || descs['Normal'];
+  return list[Math.min(zone.current_step - 1, list.length - 1)];
+}
+
+// ─────────────────────────────────────────────
+// SST CHART
+// ─────────────────────────────────────────────
+function renderChart(zone) {
+  const ctx = document.getElementById('sst-chart').getContext('2d');
+  if (sstChart) sstChart.destroy();
+
+  const labels = ['Day -7','Day -6','Day -5','Day -4','Day -3','Day -2','Day -1','Today'];
+  const color  = getColor(zone);
+
+  sstChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'SST (°C)',
+        data: zone.sst_history,
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2,
+        pointBackgroundColor: zone.sst_history.map((_, i) =>
+          i === zone.sst_history.length - 1 ? color : 'transparent'),
+        pointBorderColor: color,
+        pointRadius: zone.sst_history.map((_, i) =>
+          i === zone.sst_history.length - 1 ? 5 : 3),
+        pointHoverRadius: 5,
+        tension: 0.35,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#21262d',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#e6edf3',
+          bodyColor: '#8b949e',
+          callbacks: {
+            label: ctx => `SST: ${ctx.parsed.y.toFixed(2)}°C`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#21262d' },
+          ticks: { color: '#8b949e', font: { size: 10 } }
+        },
+        y: {
+          grid: { color: '#21262d' },
+          ticks: {
+            color: '#8b949e',
+            font: { size: 10 },
+            callback: v => v.toFixed(1) + '°'
+          }
+        }
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// SIMULATE 8-DAY PROGRESSION
+// ─────────────────────────────────────────────
+document.getElementById('btn-simulate').addEventListener('click', () => {
+  if (simInterval) {
+    clearInterval(simInterval);
+    simInterval = null;
+    stopSim();
+    return;
+  }
+  startSim();
+});
+
+function startSim() {
+  // reset all zones to step 1
+  zones.forEach(z => { z.current_step = 1; });
+  drawMarkers();
+
+  const btn = document.getElementById('btn-simulate');
+  btn.textContent = '&#9646; Stop simulation';
+  btn.style.background = '#300E05';
+  btn.style.borderColor = '#ef4444';
+  btn.style.color = '#F5C4B3';
+
+  document.getElementById('sim-bar').classList.add('active');
+  document.getElementById('sim-text').textContent = 'Simulation running — Day 1/8';
+
+  let day = 1;
+
+  simInterval = setInterval(() => {
+    day++;
+    document.getElementById('sim-text').textContent = `Simulation running — Day ${day}/8`;
+
+    zones.forEach(z => {
+      if (z.current_step < z.total_steps) z.current_step++;
+      // update derived alert level from step
+      const ratio = z.current_step / z.total_steps;
+      if (ratio >= 0.75)      z.alert_level = 'HIGH';
+      else if (ratio >= 0.45) z.alert_level = 'WARN';
+      else                    z.alert_level = 'NORMAL';
+      // update confidence proportionally
+      z.confidence = Math.min(0.99, z.confidence + 0.05 * (Math.random() * 0.5 + 0.75));
+    });
+
+    drawMarkers();
+
+    // re-render panel if a zone is selected
+    if (activeZone) {
+      activeZone = zones.find(z => z.id === activeZone.id);
+      renderPanel(activeZone);
+    }
+
+    if (day >= 8) {
+      clearInterval(simInterval);
+      simInterval = null;
+      document.getElementById('sim-text').textContent = 'Simulation complete — all zones at max progression';
+      setTimeout(stopSim, 2500);
+    }
+  }, 1000);
+}
+
+function stopSim() {
+  document.getElementById('sim-bar').classList.remove('active');
+  const btn = document.getElementById('btn-simulate');
+  btn.innerHTML = '&#9654; Simulate 8-day progression';
+  btn.style.background  = '';
+  btn.style.borderColor = '';
+  btn.style.color       = '';
+}
+
+// ─────────────────────────────────────────────
+// TOOLTIP STYLE (injected)
+// ─────────────────────────────────────────────
+const tipStyle = document.createElement('style');
+tipStyle.textContent = `
+  .dark-tip {
+    background: #161b22 !important;
+    border: 1px solid #30363d !important;
+    color: #e6edf3 !important;
+    font-size: 12px !important;
+    padding: 5px 10px !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+  }
+  .dark-tip::before { display: none !important; }
+  .leaflet-tooltip-top.dark-tip::before { display: none !important; }
+`;
+document.head.appendChild(tipStyle);
+
+// ─────────────────────────────────────────────
+// BOOT — load zones.json then draw
+// ─────────────────────────────────────────────
+fetch('zones.json')
+  .then(r => r.json())
+  .then(data => {
+    zones = data;
+    drawMarkers();
+  })
+  .catch(err => {
+    console.error('Failed to load zones.json:', err);
+    // fallback: show error in header
+    document.querySelector('.header-sub').textContent =
+      'Error: Could not load zones.json — make sure you are running a local server';
+  });
+</script>
+</body>
+</html>
