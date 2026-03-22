@@ -476,6 +476,156 @@
     }
 
     .crit-flash { animation: critFlash 0.6s ease-in-out 3; }
+
+    /* Chat UI */
+    #chat-toggle {
+      position: absolute;
+      bottom: 20px;
+      right: 400px;
+      z-index: 1001;
+      background: #1A1845;
+      border: 1px solid #7F77DD;
+      border-radius: 8px;
+      padding: 8px 16px;
+      color: #CECBF6;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #chat-toggle:hover { background: #26215C; }
+
+    #chat-panel {
+      display: none;
+      position: absolute;
+      bottom: 62px;
+      right: 400px;
+      z-index: 1001;
+      width: 360px;
+      background: rgba(22,27,34,0.98);
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #chat-panel.open { display: flex; flex-direction: column; }
+
+    .chat-header {
+      padding: 10px 14px;
+      background: #1A1845;
+      border-bottom: 1px solid #30363d;
+      font-size: 12px;
+      font-weight: 600;
+      color: #CECBF6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #7F77DD;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    #chat-messages {
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-msg-user {
+      align-self: flex-end;
+      background: #26215C;
+      border: 1px solid #534AB7;
+      border-radius: 8px 8px 2px 8px;
+      padding: 7px 11px;
+      font-size: 12px;
+      color: #CECBF6;
+      max-width: 85%;
+    }
+
+    .chat-msg-ai {
+      align-self: flex-start;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px 8px 8px 2px;
+      padding: 7px 11px;
+      font-size: 11px;
+      color: var(--text);
+      max-width: 95%;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-family: monospace;
+    }
+
+    .chat-msg-loading {
+      align-self: flex-start;
+      color: var(--muted);
+      font-size: 11px;
+      padding: 4px 0;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 6px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    #chat-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+    }
+
+    #chat-input:focus { border-color: #7F77DD; }
+
+    #chat-send {
+      background: #1A1845;
+      border: 1px solid #7F77DD;
+      border-radius: 6px;
+      padding: 7px 12px;
+      color: #CECBF6;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #chat-send:hover { background: #26215C; }
+    #chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .quick-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 0 12px 10px;
+    }
+
+    .quick-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 10px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .quick-btn:hover { border-color: #7F77DD; color: #CECBF6; }
+
     /* Scrollbar styling */
     #panel-content::-webkit-scrollbar { width: 4px; }
     #panel-content::-webkit-scrollbar-track { background: transparent; }
@@ -512,6 +662,30 @@
 
   <!-- ── MAP ── -->
   <div id="map"></div>
+
+  <!-- ── CHAT TOGGLE BUTTON ── -->
+  <button id="chat-toggle" onclick="toggleChat()">&#9670; Ask AIRAVAT</button>
+
+  <!-- ── CHAT PANEL ── -->
+  <div id="chat-panel">
+    <div class="chat-header">
+      <div class="chat-dot"></div>
+      AIRAVAT Intelligence Interface
+    </div>
+    <div id="chat-messages">
+      <div class="chat-msg-ai">System online. I have live ESG scores for all 7 Indian Ocean zones. Ask me what needs attention, or click a quick question below.</div>
+    </div>
+    <div class="quick-btns">
+      <div class="quick-btn" onclick="sendQuick('What needs attention right now?')">What needs attention?</div>
+      <div class="quick-btn" onclick="sendQuick('Which zone is most critical?')">Most critical zone?</div>
+      <div class="quick-btn" onclick="sendQuick('Any bloom risk today?')">Bloom risk?</div>
+      <div class="quick-btn" onclick="sendQuick('Summarise all zone states')">Zone summary</div>
+    </div>
+    <div class="chat-input-row">
+      <input id="chat-input" type="text" placeholder="Ask about any zone..." onkeydown="if(event.key==='Enter') sendChat()" />
+      <button id="chat-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
 
   <!-- ── LEADERBOARD OVERLAY ── -->
   <div id="leaderboard">
@@ -998,6 +1172,73 @@ function getStepAnnotationPlugin(zone) {
       }
     }
   };
+}
+
+// ─────────────────────────────────────────────
+// CHAT INTERFACE
+// ─────────────────────────────────────────────
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  panel.classList.toggle('open');
+  const btn = document.getElementById('chat-toggle');
+  btn.textContent = panel.classList.contains('open')
+    ? '✕ Close'
+    : '◆ Ask AIRAVAT';
+}
+
+function sendQuick(question) {
+  document.getElementById('chat-input').value = question;
+  sendChat();
+}
+
+function sendChat() {
+  const input   = document.getElementById('chat-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const messages = document.getElementById('chat-messages');
+  const sendBtn  = document.getElementById('chat-send');
+
+  // Add user message
+  const userMsg = document.createElement('div');
+  userMsg.className   = 'chat-msg-user';
+  userMsg.textContent = question;
+  messages.appendChild(userMsg);
+
+  // Add loading indicator
+  const loading = document.createElement('div');
+  loading.className   = 'chat-msg-loading';
+  loading.textContent = 'AIRAVAT is analysing zone data...';
+  messages.appendChild(loading);
+
+  input.value    = '';
+  sendBtn.disabled = true;
+  messages.scrollTop = messages.scrollHeight;
+
+  // Call API
+  fetch(`${API}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question })
+  })
+    .then(r => r.json())
+    .then(data => {
+      loading.remove();
+      const aiMsg = document.createElement('div');
+      aiMsg.className   = 'chat-msg-ai';
+      aiMsg.textContent = data.response;
+      messages.appendChild(aiMsg);
+      messages.scrollTop = messages.scrollHeight;
+      sendBtn.disabled = false;
+    })
+    .catch(err => {
+      loading.remove();
+      const errMsg = document.createElement('div');
+      errMsg.className   = 'chat-msg-ai';
+      errMsg.textContent = 'Error connecting to AIRAVAT API. Please try again.';
+      messages.appendChild(errMsg);
+      sendBtn.disabled = false;
+    });
 }
 
 function stopSim() {
