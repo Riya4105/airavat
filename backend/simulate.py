@@ -1,30 +1,34 @@
 import numpy as np
 
 ZONE_CONFIGS = {
-    "Z1": {"base_sst": 28.1, "trend": 0.34, "noise": 0.15, "season_amp": 0.8,  "event": "thermal_stress"},
-    "Z2": {"base_sst": 26.8, "trend": 0.16, "noise": 0.12, "season_amp": 0.6,  "event": "hypoxic_bloom"},
-    "Z3": {"base_sst": 29.0, "trend": 0.01, "noise": 0.10, "season_amp": 0.4,  "event": "normal"},
-    "Z4": {"base_sst": 28.5, "trend": -0.04,"noise": 0.13, "season_amp": 0.5,  "event": "turbidity_spike"},
-    "Z5": {"base_sst": 29.5, "trend": -0.18,"noise": 0.11, "season_amp": 0.7,  "event": "upwelling"},
-    "Z6": {"base_sst": 27.9, "trend": 0.38, "noise": 0.14, "season_amp": 0.9,  "event": "oil_slick"},
-    "Z7": {"base_sst": 28.2, "trend": 0.00, "noise": 0.09, "season_amp": 0.3,  "event": "normal"},
+    "Z1": {"base_sst": 27.0, "trend": 0.28, "noise": 0.08, "season_amp": 0.8,  "event": "thermal_stress"},
+    "Z2": {"base_sst": 26.5, "trend": 0.18, "noise": 0.07, "season_amp": 0.6,  "event": "hypoxic_bloom"},
+    "Z3": {"base_sst": 29.0, "trend": 0.01, "noise": 0.05, "season_amp": 0.4,  "event": "normal"},
+    "Z4": {"base_sst": 28.5, "trend": -0.12,"noise": 0.06, "season_amp": 0.5,  "event": "turbidity_spike"},
+    "Z5": {"base_sst": 29.5, "trend": -0.22,"noise": 0.06, "season_amp": 0.7,  "event": "upwelling"},
+    "Z6": {"base_sst": 26.8, "trend": 0.38, "noise": 0.07, "season_amp": 0.9,  "event": "oil_slick"},
+    "Z7": {"base_sst": 28.2, "trend": 0.00, "noise": 0.04, "season_amp": 0.3,  "event": "normal"},
 }
 
 def generate_sst_history(zone_id: str, days: int = 90, seed: int = 42) -> np.ndarray:
     """
     Generate realistic SST time-series for a zone.
+    Uses a longer warmup period so recent days show clear trend.
     Formula: SST(t) = base + trend*t + season_amp*sin(2π*t/365) + noise
     """
     cfg = ZONE_CONFIGS[zone_id]
     rng = np.random.default_rng(seed)
 
-    t           = np.arange(days)
-    trend       = cfg["trend"] * t / 8          # trend per 8-day window
+    # Generate 180 days but only return last `days`
+    # This gives the trend time to build up naturally
+    total = 180
+    t           = np.arange(total)
+    trend       = cfg["trend"] * t / 7        # trend per 7-day window
     seasonal    = cfg["season_amp"] * np.sin(2 * np.pi * t / 365)
-    noise       = rng.normal(0, cfg["noise"], days)
+    noise       = rng.normal(0, cfg["noise"], total)
     sst         = cfg["base_sst"] + trend + seasonal + noise
 
-    return np.round(sst, 3)
+    return np.round(sst[-days:], 3)
 
 def get_last_n_days(zone_id: str, n: int = 8) -> list:
     """Returns last n days of SST as a plain list."""
