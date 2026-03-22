@@ -626,6 +626,80 @@
 
     .quick-btn:hover { border-color: #7F77DD; color: #CECBF6; }
 
+    /* ── Day 11 Polish ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-msg-user, .chat-msg-ai {
+      animation: fadeIn 0.25s ease;
+    }
+
+    /* Glowing border on HIGH alert markers */
+    .high-glow {
+      filter: drop-shadow(0 0 6px #ef4444);
+    }
+
+    /* Panel slide-in animation */
+    #panel-content.visible {
+      animation: fadeIn 0.2s ease;
+    }
+
+    /* Pulsing live indicator */
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .live-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #1D9E75;
+      margin-right: 5px;
+      animation: livePulse 1.5s ease-in-out infinite;
+      vertical-align: middle;
+    }
+
+    /* Feedback stats bar */
+    #feedback-bar {
+      position: absolute;
+      top: 60px;
+      right: 400px;
+      z-index: 1000;
+      background: rgba(22,27,34,0.92);
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 11px;
+      color: #8b949e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .fb-tp { color: #97C459; font-weight: 600; }
+    .fb-fp { color: #F0997B; font-weight: 600; }
+    .fb-acc { color: #378ADD; font-weight: 600; }
+
+    /* Zone panel priority bar */
+    .priority-bar-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 4px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+
+    .priority-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--teal);
+      transition: width 0.5s ease;
+    }
+
     /* Scrollbar styling */
     #panel-content::-webkit-scrollbar { width: 4px; }
     #panel-content::-webkit-scrollbar-track { background: transparent; }
@@ -662,6 +736,14 @@
 
   <!-- ── MAP ── -->
   <div id="map"></div>
+
+  <!-- ── FEEDBACK STATS BAR ── -->
+  <div id="feedback-bar">
+    <span><span class="live-dot"></span>Adaptive learning</span>
+    <span>TP: <span class="fb-tp" id="fb-tp">0</span></span>
+    <span>FP: <span class="fb-fp" id="fb-fp">0</span></span>
+    <span>Accuracy: <span class="fb-acc" id="fb-acc">—</span></span>
+  </div>
 
   <!-- ── CHAT TOGGLE BUTTON ── -->
   <button id="chat-toggle" onclick="toggleChat()">&#9670; Ask AIRAVAT</button>
@@ -1411,6 +1493,23 @@ function getAction(z) {
 
 // Boot
 loadZones();
+loadFeedbackStats();
+
+// Refresh live data every 60 seconds
+setInterval(loadZones, 60000);
+setInterval(loadFeedbackStats, 15000);
+
+function loadFeedbackStats() {
+  fetch(`${API}/feedback`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('fb-tp').textContent  = data.tp;
+      document.getElementById('fb-fp').textContent  = data.fp;
+      document.getElementById('fb-acc').textContent =
+        data.total > 0 ? data.accuracy + '%' : '—';
+    })
+    .catch(() => {});
+}
 </script>
 </body>
 </html>
