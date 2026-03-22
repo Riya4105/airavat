@@ -1224,10 +1224,27 @@ function sendChat() {
     .then(r => r.json())
     .then(data => {
       loading.remove();
+
+      // AI response bubble
       const aiMsg = document.createElement('div');
       aiMsg.className   = 'chat-msg-ai';
       aiMsg.textContent = data.response;
       messages.appendChild(aiMsg);
+
+      // Feedback buttons
+      const fbRow = document.createElement('div');
+      fbRow.style.cssText = 'display:flex;gap:6px;margin-top:4px;';
+      fbRow.innerHTML = `
+        <button onclick="sendFeedback('confirm', '${data.top_zone_id}', '${data.signature}', ${data.current_step}, ${data.dtw_conf}, ${data.top_priority}, '${data.top_alert}', this.closest('div'))" 
+          style="background:#173404;border:1px solid #639922;border-radius:5px;padding:4px 10px;color:#C0DD97;font-size:11px;cursor:pointer;">
+          ✓ Confirm
+        </button>
+        <button onclick="sendFeedback('false_positive', '${data.top_zone_id}', '${data.signature}', ${data.current_step}, ${data.dtw_conf}, ${data.top_priority}, '${data.top_alert}', this.closest('div'))"
+          style="background:#300E05;border:1px solid #D85A30;border-radius:5px;padding:4px 10px;color:#F5C4B3;font-size:11px;cursor:pointer;">
+          ✗ False positive
+        </button>`;
+      messages.appendChild(fbRow);
+
       messages.scrollTop = messages.scrollHeight;
       sendBtn.disabled = false;
     })
@@ -1239,6 +1256,40 @@ function sendChat() {
       messages.appendChild(errMsg);
       sendBtn.disabled = false;
     });
+}
+
+// ─────────────────────────────────────────────
+// FEEDBACK
+// ─────────────────────────────────────────────
+function sendFeedback(type, zoneId, signature, step, conf, priority, alert, btnRow) {
+  const lastUserMsg = document.querySelector('.chat-msg-user:last-of-type');
+  const question    = lastUserMsg ? lastUserMsg.textContent : 'unknown';
+
+  fetch(`${API}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      zone_id:     zoneId,
+      signature:   signature,
+      step:        step,
+      confidence:  conf,
+      priority:    priority,
+      alert_level: alert,
+      feedback:    type,
+      question:    question
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    // Replace buttons with confirmation
+    btnRow.innerHTML = `<span style="font-size:11px;color:${type === 'confirm' ? '#97C459' : '#F0997B'}">
+      ${type === 'confirm' ? '✓ Confirmed — chain reinforced' : '✗ Logged as false positive — step penalised'}
+      &nbsp;·&nbsp; TP: ${data.total_confirmed} &nbsp;FP: ${data.total_false_positives}
+    </span>`;
+  })
+  .catch(() => {
+    btnRow.innerHTML = '<span style="font-size:11px;color:#8b949e">Feedback logged locally</span>';
+  });
 }
 
 function stopSim() {

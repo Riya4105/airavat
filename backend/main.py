@@ -1,4 +1,6 @@
 import os
+import csv
+from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -147,9 +149,107 @@ Operator question: {req.question}"""
     response_text = message.choices[0].message.content
 
     return {
-        "question": req.question,
-        "response": response_text,
-        "top_zone": ZONE_NAMES.get(top3[0]["zone_id"], top3[0]["zone_id"]),
+        "question":    req.question,
+        "response":    response_text,
+        "top_zone":    ZONE_NAMES.get(top3[0]["zone_id"], top3[0]["zone_id"]),
+        "top_zone_id": top3[0]["zone_id"],
         "top_priority": top3[0]["priority"],
-        "top_alert": top3[0]["alert_level"],
+        "top_alert":   top3[0]["alert_level"],
+        "signature":   top3[0]["signature"],
+        "current_step": top3[0]["current_step"],
+        "dtw_conf":    top3[0]["dtw_conf"],
+    }
+
+# ─────────────────────────────────────────────
+# FEEDBACK ENDPOINT 
+# ─────────────────────────────────────────────
+
+class FeedbackRequest(BaseModel):
+    zone_id:    str
+    signature:  str
+    step:       int
+    confidence: float
+    priority:   float
+    alert_level: str
+    feedback:   str   # "confirm" or "false_positive"
+    question:   str
+
+FEEDBACK_FILE = "/tmp/feedback.csv"
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest):
+    """
+    Logs operator feedback to CSV.
+    confirm       → true positive, reinforces chain weight
+    false_positive → penalises offending step
+    """
+    file_exists = os.path.isfile(FEEDBACK_FILE)
+
+    with open(FEEDBACK_FILE, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "timestamp", "zone_id", "zone_name", "signature",
+            "step", "confidence", "priority", "alert_level",
+            "feedback", "question"
+        ])
+        if not file_exists:
+            writer.writeheader()
+
+        writer.writerow({
+            "timestamp":   datetime.utcnow().isoformat(),
+            "zone_id":     req.zone_id,
+            "zone_name":   ZONE_NAMES.get(req.zone_id, req.zone_id),
+            "signature":   req.signature,
+            "step":        req.step,
+            "confidence":  req.confidence,
+            "priority":    req.priority,
+            "alert_level": req.alert_level,
+            "feedback":    req.feedback,
+            "question":    req.question,
+        })
+
+    # Count totals for response
+    tp_count = 0
+    fp_count = 0
+    if os.path.isfile(FEEDBACK_FILE):
+        with open(FEEDBACK_FILE, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["feedback"] == "confirm":
+                    tp_count += 1
+                elif row["feedback"] == "false_positive":
+                    fp_count += 1
+
+    return {
+        "status":   "logged",
+        "feedback": req.feedback,
+        "zone_id":  req.zone_id,
+        "total_confirmed":      tp_count,
+        "total_false_positives": fp_count,
+        "message": f"{'Chain reinforced' if req.feedback == 'confirm' else 'Step penalised'}. System recalibrating."
+    }
+
+
+@app.get("/feedback")
+def get_feedback():
+    """Returns all feedback entries — shown as live dataframe in demo."""
+    if not os.path.isfile(FEEDBACK_FILE):
+        return {"entries": [], "total": 0, "tp": 0, "fp": 0}
+
+    entries = []
+    tp = fp = 0
+    with open(FEEDBACK_FILE, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            entries.append(row)
+            if row["feedback"] == "confirm":
+                tp += 1
+            else:
+                fp += 1
+
+    return {
+        "entries": entries,
+        "total":   len(entries),
+        "tp":      tp,
+        "fp":      fp,
+        "accuracy": round(tp / len(entries) * 100, 1) if entries else 0
     }
