@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import anthropic
+from groq import Groq
 from esg_engine import score_zone, score_all_zones
 from simulate import get_last_n_days, get_sst_delta, get_slope, ZONE_CONFIGS
 
@@ -15,10 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─────────────────────────────────────────────
-# Anthropic client
-# ─────────────────────────────────────────────
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # ─────────────────────────────────────────────
 # EXISTING ROUTES
@@ -138,17 +135,16 @@ Rules:
 
 Operator question: {req.question}"""
 
-    # Call Claude
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
+    message = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         max_tokens=600,
         messages=[
-            {"role": "user", "content": user_message}
-        ],
-        system=system_prompt
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_message}
+        ]
     )
 
-    response_text = message.content[0].text
+    response_text = message.choices[0].message.content
 
     return {
         "question": req.question,
