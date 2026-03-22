@@ -1,0 +1,5 @@
+fastapi==0.135.1
+uvicorn==0.42.0
+numpy==2.3.4
+dtaidistance==2.4.0
+scipy==1.17.1
