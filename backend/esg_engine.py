@@ -12,71 +12,70 @@ from simulate import generate_sst_history, get_slope, ZONE_CONFIGS
 SIGNATURES = {
     "thermal_stress": {
         "steps": [
-            {"step": 1, "name": "Baseline normal",         "variable": "sst", "direction": "stable",   "threshold": 0.05},
-            {"step": 2, "name": "SST rise begins",         "variable": "sst", "direction": "rising",   "threshold": 0.10},
-            {"step": 3, "name": "Sustained warming",       "variable": "sst", "direction": "rising",   "threshold": 0.20},
-            {"step": 4, "name": "Acceleration detected",   "variable": "sst", "direction": "rising",   "threshold": 0.28},
-            {"step": 5, "name": "Thermal anomaly confirmed","variable": "sst","direction": "rising",   "threshold": 0.32},
-            {"step": 6, "name": "Crisis threshold near",   "variable": "sst", "direction": "rising",   "threshold": 0.36},
-            {"step": 7, "name": "Critical — event imminent","variable": "sst","direction": "rising",   "threshold": 0.40},
+            {"step": 1, "name": "Baseline normal",          "variable": "sst", "direction": "stable",  "threshold": 0.003},
+            {"step": 2, "name": "SST rise begins",          "variable": "sst", "direction": "rising",  "threshold": 0.010},
+            {"step": 3, "name": "Sustained warming",        "variable": "sst", "direction": "rising",  "threshold": 0.020},
+            {"step": 4, "name": "Acceleration detected",    "variable": "sst", "direction": "rising",  "threshold": 0.030},
+            {"step": 5, "name": "Thermal anomaly confirmed","variable": "sst", "direction": "rising",  "threshold": 0.038},
+            {"step": 6, "name": "Crisis threshold near",    "variable": "sst", "direction": "rising",  "threshold": 0.048},
+            {"step": 7, "name": "Critical — event imminent","variable": "sst", "direction": "rising",  "threshold": 0.060},
         ],
-        # Reference SST pattern for DTW matching (normalised shape)
         "reference": [0.0, 0.1, 0.25, 0.45, 0.65, 0.82, 1.0]
     },
 
     "hypoxic_bloom": {
         "steps": [
-            {"step": 1, "name": "Baseline normal",         "variable": "sst", "direction": "stable",   "threshold": 0.05},
-            {"step": 2, "name": "Nutrient loading starts", "variable": "sst", "direction": "rising",   "threshold": 0.08},
-            {"step": 3, "name": "DO drop observed",        "variable": "sst", "direction": "rising",   "threshold": 0.14},
-            {"step": 4, "name": "Chl-a spike detected",    "variable": "sst", "direction": "rising",   "threshold": 0.18},
-            {"step": 5, "name": "Bloom initiation",        "variable": "sst", "direction": "rising",   "threshold": 0.22},
-            {"step": 6, "name": "Hypoxia spreading",       "variable": "sst", "direction": "rising",   "threshold": 0.26},
-            {"step": 7, "name": "Critical hypoxia",        "variable": "sst", "direction": "rising",   "threshold": 0.30},
+            {"step": 1, "name": "Baseline normal",          "variable": "sst", "direction": "stable",  "threshold": 0.003},
+            {"step": 2, "name": "Nutrient loading starts",  "variable": "sst", "direction": "rising",  "threshold": 0.008},
+            {"step": 3, "name": "DO drop observed",         "variable": "sst", "direction": "rising",  "threshold": 0.016},
+            {"step": 4, "name": "Chl-a spike detected",     "variable": "sst", "direction": "rising",  "threshold": 0.022},
+            {"step": 5, "name": "Bloom initiation",         "variable": "sst", "direction": "rising",  "threshold": 0.028},
+            {"step": 6, "name": "Hypoxia spreading",        "variable": "sst", "direction": "rising",  "threshold": 0.034},
+            {"step": 7, "name": "Critical hypoxia",         "variable": "sst", "direction": "rising",  "threshold": 0.042},
         ],
         "reference": [0.0, 0.08, 0.18, 0.30, 0.45, 0.62, 0.80]
     },
 
     "turbidity_spike": {
         "steps": [
-            {"step": 1, "name": "Baseline normal",         "variable": "sst", "direction": "stable",   "threshold": 0.05},
-            {"step": 2, "name": "Sediment load rising",    "variable": "sst", "direction": "falling",  "threshold": -0.05},
-            {"step": 3, "name": "Visibility drop",         "variable": "sst", "direction": "falling",  "threshold": -0.10},
-            {"step": 4, "name": "High turbidity zone",     "variable": "sst", "direction": "falling",  "threshold": -0.15},
-            {"step": 5, "name": "Event confirmed",         "variable": "sst", "direction": "falling",  "threshold": -0.20},
+            {"step": 1, "name": "Baseline normal",          "variable": "sst", "direction": "stable",  "threshold": 0.003},
+            {"step": 2, "name": "Sediment load rising",     "variable": "sst", "direction": "falling", "threshold": -0.006},
+            {"step": 3, "name": "Visibility drop",          "variable": "sst", "direction": "falling", "threshold": -0.010},
+            {"step": 4, "name": "High turbidity zone",      "variable": "sst", "direction": "falling", "threshold": -0.014},
+            {"step": 5, "name": "Event confirmed",          "variable": "sst", "direction": "falling", "threshold": -0.018},
         ],
         "reference": [0.0, -0.05, -0.12, -0.20, -0.30]
     },
 
     "upwelling": {
         "steps": [
-            {"step": 1, "name": "Baseline normal",         "variable": "sst", "direction": "stable",   "threshold": 0.05},
-            {"step": 2, "name": "Cold upwelling starts",   "variable": "sst", "direction": "falling",  "threshold": -0.10},
-            {"step": 3, "name": "SST drop confirmed",      "variable": "sst", "direction": "falling",  "threshold": -0.20},
-            {"step": 4, "name": "Nutrient rich zone",      "variable": "sst", "direction": "falling",  "threshold": -0.30},
-            {"step": 5, "name": "Fishery opportunity",     "variable": "sst", "direction": "falling",  "threshold": -0.40},
-            {"step": 6, "name": "Peak upwelling",          "variable": "sst", "direction": "falling",  "threshold": -0.50},
-            {"step": 7, "name": "Upwelling subsiding",     "variable": "sst", "direction": "stable",   "threshold": 0.05},
+            {"step": 1, "name": "Baseline normal",          "variable": "sst", "direction": "stable",  "threshold": 0.003},
+            {"step": 2, "name": "Cold upwelling starts",    "variable": "sst", "direction": "falling", "threshold": -0.008},
+            {"step": 3, "name": "SST drop confirmed",       "variable": "sst", "direction": "falling", "threshold": -0.014},
+            {"step": 4, "name": "Nutrient rich zone",       "variable": "sst", "direction": "falling", "threshold": -0.020},
+            {"step": 5, "name": "Fishery opportunity",      "variable": "sst", "direction": "falling", "threshold": -0.026},
+            {"step": 6, "name": "Peak upwelling",           "variable": "sst", "direction": "falling", "threshold": -0.032},
+            {"step": 7, "name": "Upwelling subsiding",      "variable": "sst", "direction": "stable",  "threshold": 0.003},
         ],
         "reference": [0.0, -0.12, -0.28, -0.45, -0.60, -0.72, -0.65]
     },
 
     "oil_slick": {
         "steps": [
-            {"step": 1, "name": "Baseline normal",         "variable": "sst", "direction": "stable",   "threshold": 0.05},
-            {"step": 2, "name": "SAR anomaly detected",    "variable": "sst", "direction": "rising",   "threshold": 0.12},
-            {"step": 3, "name": "Surface film forming",    "variable": "sst", "direction": "rising",   "threshold": 0.22},
-            {"step": 4, "name": "Spreading confirmed",     "variable": "sst", "direction": "rising",   "threshold": 0.32},
-            {"step": 5, "name": "Slick boundary mapped",   "variable": "sst", "direction": "rising",   "threshold": 0.42},
-            {"step": 6, "name": "Source identified",       "variable": "sst", "direction": "rising",   "threshold": 0.52},
-            {"step": 7, "name": "Containment needed",      "variable": "sst", "direction": "rising",   "threshold": 0.62},
+            {"step": 1, "name": "Baseline normal",          "variable": "sst", "direction": "stable",  "threshold": 0.003},
+            {"step": 2, "name": "SAR anomaly detected",     "variable": "sst", "direction": "rising",  "threshold": 0.012},
+            {"step": 3, "name": "Surface film forming",     "variable": "sst", "direction": "rising",  "threshold": 0.022},
+            {"step": 4, "name": "Spreading confirmed",      "variable": "sst", "direction": "rising",  "threshold": 0.032},
+            {"step": 5, "name": "Slick boundary mapped",    "variable": "sst", "direction": "rising",  "threshold": 0.040},
+            {"step": 6, "name": "Source identified",        "variable": "sst", "direction": "rising",  "threshold": 0.048},
+            {"step": 7, "name": "Containment needed",       "variable": "sst", "direction": "rising",  "threshold": 0.056},
         ],
         "reference": [0.0, 0.12, 0.28, 0.46, 0.60, 0.75, 0.90]
     },
 
     "normal": {
         "steps": [
-            {"step": 1, "name": "Baseline normal",         "variable": "sst", "direction": "stable",   "threshold": 0.05},
+            {"step": 1, "name": "Baseline normal",          "variable": "sst", "direction": "stable",  "threshold": 0.003},
         ],
         "reference": [0.0]
     }
@@ -139,23 +138,22 @@ def dtw_match(zone_id: str) -> dict:
 def detect_step(zone_id: str, signature: str) -> int:
     """
     Walk the signature steps in order.
-    Return the highest step whose threshold is satisfied.
+    Return the highest step whose threshold is satisfied by the slope.
     """
-    sst_full  = generate_sst_history(zone_id, days=90)
-    sst_last8 = sst_full[-8:]
-    slope     = get_slope(zone_id)
-    delta     = float(sst_last8[-1] - sst_last8[0])
-
-    steps     = SIGNATURES[signature]["steps"]
-    confirmed = 1   # always at least step 1
+    slope  = get_slope(zone_id)
+    steps  = SIGNATURES[signature]["steps"]
+    confirmed = 1
 
     for step_def in steps:
         thresh = step_def["threshold"]
         direct = step_def["direction"]
 
-        if direct == "rising"  and slope >= thresh: confirmed = step_def["step"]
-        if direct == "falling" and slope <= thresh: confirmed = step_def["step"]
-        if direct == "stable"  and abs(slope) <= abs(thresh): confirmed = step_def["step"]
+        if direct == "rising"  and slope >= thresh:
+            confirmed = step_def["step"]
+        if direct == "falling" and slope <= thresh:
+            confirmed = step_def["step"]
+        if direct == "stable"  and abs(slope) <= thresh:
+            confirmed = step_def["step"]
 
     return confirmed
 
