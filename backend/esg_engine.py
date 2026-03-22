@@ -185,9 +185,9 @@ def convergence_score(zone_id: str, dtw_conf: float) -> dict:
     priority = (0.40 * dtw_conf) + (0.35 * hist_sim) + (0.25 * slope_score)
 
     # Alert level thresholds
-    if priority >= 0.70:
+    if priority >= 0.55:
         alert_level = "HIGH"
-    elif priority >= 0.45:
+    elif priority >= 0.35:
         alert_level = "WARN"
     else:
         alert_level = "NORMAL"
