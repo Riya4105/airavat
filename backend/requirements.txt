@@ -3,4 +3,5 @@ uvicorn==0.42.0
 numpy==2.3.4
 dtaidistance==2.4.0
 scipy==1.17.1
-groq==0.11.0
+groq==0.9.0
+httpx==0.27.0
