@@ -1031,19 +1031,94 @@ document.head.appendChild(tipStyle);
 // ─────────────────────────────────────────────
 // BOOT — load zones.json then draw
 // ─────────────────────────────────────────────
-fetch('zones.json')
-  .then(r => r.json())
-  .then(data => {
-    zones = data;
-    drawMarkers();
-    renderLeaderboard();
-  })
-  .catch(err => {
-    console.error('Failed to load zones.json:', err);
-    // fallback: show error in header
-    document.querySelector('.header-sub').textContent =
-      'Error: Could not load zones.json — make sure you are running a local server';
-  });
+const API = 'https://airavat-api.onrender.com';
+
+function loadZones() {
+  fetch(`${API}/zones`)
+    .then(r => r.json())
+    .then(data => {
+      // Map API response onto the same zone structure the frontend expects
+      zones = data.zones.map(z => ({
+        id:                 z.zone_id,
+        name:               getZoneName(z.zone_id),
+        lat:                getZoneCoords(z.zone_id).lat,
+        lng:                getZoneCoords(z.zone_id).lng,
+        event_type:         formatSignature(z.signature),
+        current_step:       z.current_step,
+        total_steps:        z.total_steps,
+        confidence:         z.dtw_conf,
+        sst_delta:          z.sst_delta,
+        trajectory:         z.slope > 0.02 ? 'rising' : z.slope < -0.02 ? 'falling' : 'stable',
+        priority:           z.priority,
+        alert_level:        z.alert_level,
+        sst_history:        z.sst_history,
+        recommended_action: getAction(z),
+      }));
+
+      drawMarkers();
+      renderLeaderboard();
+
+      // Update header to show live data
+      document.querySelector('.header-sub').textContent =
+        'Live ESG scores · ' + new Date().toLocaleTimeString();
+    })
+    .catch(err => {
+      console.error('API error:', err);
+      // Fallback to zones.json if API is down
+      fetch('zones.json')
+        .then(r => r.json())
+        .then(data => {
+          zones = data;
+          drawMarkers();
+          renderLeaderboard();
+          document.querySelector('.header-sub').textContent =
+            'Offline mode — cached zone data';
+        });
+    });
+}
+
+// Zone metadata (coords + names stay in frontend)
+function getZoneName(id) {
+  const names = {
+    Z1: 'Arabian Sea NW', Z2: 'Gulf of Oman',
+    Z3: 'Lakshadweep Sea', Z4: 'Bay of Bengal N',
+    Z5: 'Sri Lanka Coast', Z6: 'Malabar Coast', Z7: 'Andaman Sea'
+  };
+  return names[id] || id;
+}
+
+function getZoneCoords(id) {
+  const coords = {
+    Z1: {lat: 19.5, lng: 63.2}, Z2: {lat: 23.1, lng: 58.4},
+    Z3: {lat: 12.0, lng: 73.5}, Z4: {lat: 17.8, lng: 86.2},
+    Z5: {lat:  7.5, lng: 81.8}, Z6: {lat: 11.2, lng: 75.8},
+    Z7: {lat: 11.5, lng: 96.0}
+  };
+  return coords[id] || {lat: 0, lng: 0};
+}
+
+function formatSignature(sig) {
+  const map = {
+    thermal_stress: 'Thermal stress',
+    hypoxic_bloom:  'Hypoxic bloom',
+    turbidity_spike:'Turbidity spike',
+    upwelling:      'Upwelling',
+    oil_slick:      'Oil slick precursor',
+    normal:         'Normal'
+  };
+  return map[sig] || sig;
+}
+
+function getAction(z) {
+  if (z.alert_level === 'HIGH')
+    return `URGENT: ${formatSignature(z.signature)} detected at step ${z.current_step}/${z.total_steps}. Confidence ${Math.round(z.dtw_conf * 100)}%. Dispatch response team immediately.`;
+  if (z.alert_level === 'WARN')
+    return `Monitor closely. ${formatSignature(z.signature)} precursor at step ${z.current_step}/${z.total_steps}. Confidence ${Math.round(z.dtw_conf * 100)}%. Increase sampling frequency.`;
+  return 'No action required. Continue routine monitoring.';
+}
+
+// Boot
+loadZones();
 </script>
 </body>
 </html>
