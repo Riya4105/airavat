@@ -44,6 +44,68 @@
       overflow: hidden;
     }
 
+    /* ── COLD START TOAST ── */
+    #cold-toast {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      background: #1a1200;
+      border-bottom: 1px solid #EF9F27;
+      padding: 9px 20px;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.4s, border-color 0.4s;
+    }
+    #cold-toast.visible { display: flex; }
+    #cold-toast.ready {
+      background: #0a1a0a;
+      border-color: #1D9E75;
+    }
+    #cold-toast-icon { flex-shrink: 0; }
+    #cold-toast-msg {
+      flex: 1;
+      font-size: 12px;
+      color: #FAC775;
+      line-height: 1.5;
+    }
+    #cold-toast.ready #cold-toast-msg { color: #9FE1CB; }
+    #cold-bar-wrap {
+      width: 110px;
+      height: 3px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #cold-bar {
+      height: 100%;
+      width: 0%;
+      background: #EF9F27;
+      border-radius: 2px;
+      transition: width 15s linear, background 0.4s;
+    }
+    #cold-toast.ready #cold-bar { background: #1D9E75; width: 100%; transition: background 0.4s; }
+    #cold-toast-eta {
+      font-size: 11px;
+      color: #854F0B;
+      flex-shrink: 0;
+    }
+    #cold-toast.ready #cold-toast-eta { color: #1D9E75; }
+    #cold-toast-close {
+      background: none;
+      border: none;
+      color: #854F0B;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+    #cold-toast.ready #cold-toast-close { color: #1D9E75; }
+
     /* ── Layout shell ── */
     #app {
       display: grid;
@@ -397,6 +459,7 @@
       background: var(--teal);
       animation: pulse 0.8s ease-in-out infinite;
     }
+
     /* Priority leaderboard */
     #leaderboard {
       position: absolute;
@@ -626,7 +689,7 @@
 
     .quick-btn:hover { border-color: #7F77DD; color: #CECBF6; }
 
-    /* ── Day 11 Polish ── */
+    /* ── Polish ── */
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -636,17 +699,14 @@
       animation: fadeIn 0.25s ease;
     }
 
-    /* Glowing border on HIGH alert markers */
     .high-glow {
       filter: drop-shadow(0 0 6px #ef4444);
     }
 
-    /* Panel slide-in animation */
     #panel-content.visible {
       animation: fadeIn 0.2s ease;
     }
 
-    /* Pulsing live indicator */
     @keyframes livePulse {
       0%, 100% { opacity: 1; }
       50%       { opacity: 0.3; }
@@ -680,11 +740,10 @@
       gap: 10px;
     }
 
-    .fb-tp { color: #97C459; font-weight: 600; }
-    .fb-fp { color: #F0997B; font-weight: 600; }
+    .fb-tp  { color: #97C459; font-weight: 600; }
+    .fb-fp  { color: #F0997B; font-weight: 600; }
     .fb-acc { color: #378ADD; font-weight: 600; }
 
-    /* Zone panel priority bar */
     .priority-bar-wrap {
       background: var(--surface2);
       border-radius: 4px;
@@ -700,13 +759,31 @@
       transition: width 0.5s ease;
     }
 
-    /* Scrollbar styling */
     #panel-content::-webkit-scrollbar { width: 4px; }
     #panel-content::-webkit-scrollbar-track { background: transparent; }
     #panel-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   </style>
 </head>
 <body>
+
+  <!-- ── COLD START TOAST ── -->
+  <!-- Shown automatically on page load. Dismisses itself once backend responds. -->
+  <div id="cold-toast">
+    <svg id="cold-toast-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="7" stroke="#EF9F27" stroke-width="1.2"/>
+      <path d="M8 4.5v4" stroke="#EF9F27" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="8" cy="11.5" r="0.8" fill="#EF9F27"/>
+    </svg>
+    <span id="cold-toast-msg">
+      Backend waking up — first load on free tier may take <strong style="color:#EF9F27;">10–15 seconds</strong>. ESG scores loading...
+    </span>
+    <div id="cold-bar-wrap">
+      <div id="cold-bar"></div>
+    </div>
+    <span id="cold-toast-eta">~15s</span>
+    <button id="cold-toast-close" onclick="document.getElementById('cold-toast').style.display='none'">×</button>
+  </div>
+
 <div id="app">
 
   <!-- ── HEADER ── -->
@@ -860,10 +937,76 @@
 
 <script>
 // ─────────────────────────────────────────────
+// COLD START HANDLER
+// Pings /health on load. Shows amber toast with
+// progress bar while waiting. Switches to green
+// once backend responds, then auto-dismisses.
+// ─────────────────────────────────────────────
+const API = 'https://airavat-api.onrender.com';
+
+(function initColdStartToast() {
+  const toast   = document.getElementById('cold-toast');
+  const msg     = document.getElementById('cold-toast-msg');
+  const bar     = document.getElementById('cold-bar');
+  const eta     = document.getElementById('cold-toast-eta');
+  const icon    = document.getElementById('cold-toast-icon');
+
+  // Show toast immediately
+  toast.classList.add('visible');
+
+  // Start 15s progress bar after a brief paint delay
+  setTimeout(() => { bar.style.width = '100%'; }, 60);
+
+  // Countdown timer display
+  let secs = 15;
+  const countdown = setInterval(() => {
+    secs--;
+    if (secs > 0) {
+      eta.textContent = '~' + secs + 's';
+    } else {
+      clearInterval(countdown);
+      eta.textContent = 'still loading...';
+    }
+  }, 1000);
+
+  // Ping the backend
+  fetch(API + '/health', { signal: AbortSignal.timeout(25000) })
+    .then(r => {
+      if (!r.ok) throw new Error('non-ok');
+      return r.json();
+    })
+    .then(() => {
+      clearInterval(countdown);
+
+      // Switch to green "ready" state
+      toast.classList.add('ready');
+      icon.innerHTML = `
+        <circle cx="8" cy="8" r="7" stroke="#1D9E75" stroke-width="1.2"/>
+        <path d="M5 8l2.5 2.5L11 5.5" stroke="#1D9E75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      `;
+      msg.innerHTML = 'AIRAVAT backend is live — ESG scores loaded successfully';
+      eta.textContent = '';
+
+      // Auto-dismiss after 3s
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.5s';
+        setTimeout(() => { toast.style.display = 'none'; }, 500);
+      }, 3000);
+    })
+    .catch(() => {
+      clearInterval(countdown);
+      msg.innerHTML = 'Could not reach backend — running in offline mode with cached data';
+      eta.textContent = '';
+      setTimeout(() => { toast.style.display = 'none'; }, 5000);
+    });
+})();
+
+// ─────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────
 let zones      = [];
-let markers    = {};         // id → leaflet marker
+let markers    = {};
 let activeZone = null;
 let sstChart   = null;
 let simInterval = null;
@@ -878,7 +1021,6 @@ const map = L.map('map', {
   attributionControl: true
 });
 
-// Dark ocean tile — CartoDB dark matter
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
   subdomains: 'abcd',
@@ -901,11 +1043,11 @@ function getConfColor(conf) {
 }
 
 // ─────────────────────────────────────────────
-// CUSTOM MARKER — circle with pulse ring for HIGH
+// CUSTOM MARKER
 // ─────────────────────────────────────────────
 function makeIcon(zone) {
   const color  = getColor(zone);
-  const radius = 16 + zone.confidence * 8;   // bigger = more confident
+  const radius = 16 + zone.confidence * 8;
   const pulse  = zone.alert_level === 'HIGH'
     ? `<circle cx="24" cy="24" r="${radius + 6}"
          fill="none" stroke="${color}" stroke-width="1.5" opacity="0.35">
@@ -916,7 +1058,6 @@ function makeIcon(zone) {
        </circle>` : '';
 
   const step_ratio = zone.current_step / zone.total_steps;
-  // arc background
   const arcFull  = 2 * Math.PI * radius;
   const arcFill  = arcFull * step_ratio;
 
@@ -950,14 +1091,12 @@ function makeIcon(zone) {
 // DRAW MARKERS
 // ─────────────────────────────────────────────
 function drawMarkers() {
-  // clear existing
   Object.values(markers).forEach(m => map.removeLayer(m));
   markers = {};
 
   zones.forEach(zone => {
     const marker = L.marker([zone.lat, zone.lng], { icon: makeIcon(zone) }).addTo(map);
 
-    // tooltip (always visible label)
     marker.bindTooltip(`<b>${zone.name}</b><br>${zone.event_type}`, {
       permanent: false,
       direction: 'top',
@@ -971,13 +1110,12 @@ function drawMarkers() {
 }
 
 // ─────────────────────────────────────────────
-// SELECT ZONE — populates right panel
+// SELECT ZONE
 // ─────────────────────────────────────────────
 function selectZone(id) {
   activeZone = zones.find(z => z.id === id);
   if (!activeZone) return;
 
-  // show panel
   document.getElementById('panel-empty').style.display   = 'none';
   document.getElementById('panel-content').classList.add('visible');
 
@@ -985,18 +1123,14 @@ function selectZone(id) {
 }
 
 function renderPanel(zone) {
-  // name
   document.getElementById('p-zone-name').textContent = zone.name;
 
-  // badge
   const badge = document.getElementById('p-badge');
   badge.textContent = zone.alert_level;
   badge.className   = `badge badge-${zone.alert_level}`;
 
-  // event label
   document.getElementById('p-event-label').textContent = zone.event_type;
 
-  // step dots
   const dotsEl = document.getElementById('p-step-dots');
   dotsEl.innerHTML = '';
   for (let i = 0; i < zone.total_steps; i++) {
@@ -1014,7 +1148,6 @@ function renderPanel(zone) {
   document.getElementById('p-step-label').textContent =
     `Step ${zone.current_step} of ${zone.total_steps} — ${getStepDesc(zone)}`;
 
-  // confidence bar
   const pct   = Math.round(zone.confidence * 100);
   const color = getConfColor(zone.confidence);
   document.getElementById('p-conf-bar').style.width      = pct + '%';
@@ -1022,7 +1155,6 @@ function renderPanel(zone) {
   document.getElementById('p-conf-value').textContent    = pct + '% convergence confidence';
   document.getElementById('p-conf-value').style.color    = color;
 
-  // stats
   const delta = zone.sst_delta;
   document.getElementById('p-sst-delta').textContent =
     (delta >= 0 ? '+' : '') + delta.toFixed(1) + '°C';
@@ -1038,10 +1170,8 @@ function renderPanel(zone) {
   document.getElementById('p-priority').style.color    = getConfColor(zone.priority);
   document.getElementById('p-event-type').textContent  = zone.event_type;
 
-  // action
   document.getElementById('p-action').textContent = zone.recommended_action;
 
-  // chart
   renderChart(zone);
 }
 
@@ -1138,7 +1268,6 @@ document.getElementById('btn-simulate').addEventListener('click', () => {
 });
 
 function startSim() {
-  // reset all zones to step 1
   zones.forEach(z => { z.current_step = 1; });
   drawMarkers();
 
@@ -1159,24 +1288,20 @@ function startSim() {
 
     zones.forEach(z => {
       if (z.current_step < z.total_steps) z.current_step++;
-      // update derived alert level from step
       const ratio = z.current_step / z.total_steps;
       if (ratio >= 0.75)      z.alert_level = 'HIGH';
       else if (ratio >= 0.45) z.alert_level = 'WARN';
       else                    z.alert_level = 'NORMAL';
-      // update confidence proportionally
       z.confidence = Math.min(0.99, z.confidence + 0.05 * (Math.random() * 0.5 + 0.75));
     });
 
     drawMarkers();
     renderLeaderboard();
 
-    // highlight the top priority zone
     const topZone = [...zones].sort((a, b) => b.priority - a.priority)[0];
     const topMarkerEl = markers[topZone.id]?._icon;
     if (topMarkerEl) topMarkerEl.classList.add('crit-flash');
 
-    // re-render panel if a zone is selected
     if (activeZone) {
       activeZone = zones.find(z => z.id === activeZone.id);
       renderPanel(activeZone);
@@ -1218,7 +1343,7 @@ function renderLeaderboard() {
 }
 
 // ─────────────────────────────────────────────
-// ANNOTATED CHART — adds step marker lines
+// ANNOTATED CHART
 // ─────────────────────────────────────────────
 function getStepAnnotationPlugin(zone) {
   return {
@@ -1243,7 +1368,6 @@ function getStepAnnotationPlugin(zone) {
         ctx.stroke();
         ctx.restore();
 
-        // label only the current step
         if (s === zone.current_step - 1) {
           ctx.save();
           ctx.font      = '10px monospace';
@@ -1274,30 +1398,27 @@ function sendQuick(question) {
 }
 
 function sendChat() {
-  const input   = document.getElementById('chat-input');
+  const input    = document.getElementById('chat-input');
   const question = input.value.trim();
   if (!question) return;
 
   const messages = document.getElementById('chat-messages');
   const sendBtn  = document.getElementById('chat-send');
 
-  // Add user message
   const userMsg = document.createElement('div');
   userMsg.className   = 'chat-msg-user';
   userMsg.textContent = question;
   messages.appendChild(userMsg);
 
-  // Add loading indicator
   const loading = document.createElement('div');
   loading.className   = 'chat-msg-loading';
   loading.textContent = 'AIRAVAT is analysing zone data...';
   messages.appendChild(loading);
 
-  input.value    = '';
+  input.value      = '';
   sendBtn.disabled = true;
   messages.scrollTop = messages.scrollHeight;
 
-  // Call API
   fetch(`${API}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1307,17 +1428,15 @@ function sendChat() {
     .then(data => {
       loading.remove();
 
-      // AI response bubble
       const aiMsg = document.createElement('div');
       aiMsg.className   = 'chat-msg-ai';
       aiMsg.textContent = data.response;
       messages.appendChild(aiMsg);
 
-      // Feedback buttons
       const fbRow = document.createElement('div');
       fbRow.style.cssText = 'display:flex;gap:6px;margin-top:4px;';
       fbRow.innerHTML = `
-        <button onclick="sendFeedback('confirm', '${data.top_zone_id}', '${data.signature}', ${data.current_step}, ${data.dtw_conf}, ${data.top_priority}, '${data.top_alert}', this.closest('div'))" 
+        <button onclick="sendFeedback('confirm', '${data.top_zone_id}', '${data.signature}', ${data.current_step}, ${data.dtw_conf}, ${data.top_priority}, '${data.top_alert}', this.closest('div'))"
           style="background:#173404;border:1px solid #639922;border-radius:5px;padding:4px 10px;color:#C0DD97;font-size:11px;cursor:pointer;">
           ✓ Confirm
         </button>
@@ -1330,7 +1449,7 @@ function sendChat() {
       messages.scrollTop = messages.scrollHeight;
       sendBtn.disabled = false;
     })
-    .catch(err => {
+    .catch(() => {
       loading.remove();
       const errMsg = document.createElement('div');
       errMsg.className   = 'chat-msg-ai';
@@ -1363,7 +1482,6 @@ function sendFeedback(type, zoneId, signature, step, conf, priority, alert, btnR
   })
   .then(r => r.json())
   .then(data => {
-    // Replace buttons with confirmation
     btnRow.innerHTML = `<span style="font-size:11px;color:${type === 'confirm' ? '#97C459' : '#F0997B'}">
       ${type === 'confirm' ? '✓ Confirmed — chain reinforced' : '✗ Logged as false positive — step penalised'}
       &nbsp;·&nbsp; TP: ${data.total_confirmed} &nbsp;FP: ${data.total_false_positives}
@@ -1384,7 +1502,7 @@ function stopSim() {
 }
 
 // ─────────────────────────────────────────────
-// TOOLTIP STYLE (injected)
+// TOOLTIP STYLE
 // ─────────────────────────────────────────────
 const tipStyle = document.createElement('style');
 tipStyle.textContent = `
@@ -1403,15 +1521,12 @@ tipStyle.textContent = `
 document.head.appendChild(tipStyle);
 
 // ─────────────────────────────────────────────
-// BOOT — load zones.json then draw
+// BOOT — load zones then draw
 // ─────────────────────────────────────────────
-const API = 'https://airavat-api.onrender.com';
-
 function loadZones() {
   fetch(`${API}/zones`)
     .then(r => r.json())
     .then(data => {
-      // Map API response onto the same zone structure the frontend expects
       zones = data.zones.map(z => ({
         id:                 z.zone_id,
         name:               getZoneName(z.zone_id),
@@ -1432,13 +1547,10 @@ function loadZones() {
       drawMarkers();
       renderLeaderboard();
 
-      // Update header to show live data
       document.querySelector('.header-sub').textContent =
         'Live ESG scores · ' + new Date().toLocaleTimeString();
     })
-    .catch(err => {
-      console.error('API error:', err);
-      // Fallback to zones.json if API is down
+    .catch(() => {
       fetch('zones.json')
         .then(r => r.json())
         .then(data => {
@@ -1451,7 +1563,6 @@ function loadZones() {
     });
 }
 
-// Zone metadata (coords + names stay in frontend)
 function getZoneName(id) {
   const names = {
     Z1: 'Arabian Sea NW', Z2: 'Gulf of Oman',
@@ -1491,11 +1602,9 @@ function getAction(z) {
   return 'No action required. Continue routine monitoring.';
 }
 
-// Boot
 loadZones();
 loadFeedbackStats();
 
-// Refresh live data every 60 seconds
 setInterval(loadZones, 60000);
 setInterval(loadFeedbackStats, 15000);
 

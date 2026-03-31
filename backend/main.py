@@ -20,16 +20,24 @@ app.add_middleware(
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # ─────────────────────────────────────────────
-# EXISTING ROUTES
+# CORE ROUTES
 # ─────────────────────────────────────────────
 
 @app.get("/")
 def root():
     return {"status": "ok", "system": "AIRAVAT 3.0", "version": "1.0.0"}
 
+
 @app.get("/health")
 def health():
+    """
+    Cold start ping endpoint.
+    The frontend pings this on page load to wake the Render free-tier server
+    and show the user a warm-up toast while waiting.
+    Returns immediately once the server is live.
+    """
     return {"status": "healthy"}
+
 
 @app.get("/zones")
 def get_all_zones():
@@ -45,6 +53,7 @@ def get_all_zones():
         })
     return {"zones": enriched, "count": len(enriched)}
 
+
 @app.get("/zones/{zone_id}")
 def get_zone(zone_id: str):
     zone_id = zone_id.upper()
@@ -56,8 +65,9 @@ def get_zone(zone_id: str):
     result["slope"]       = get_slope(zone_id)
     return result
 
+
 # ─────────────────────────────────────────────
-# QUERY ENDPOINT — Day 9
+# QUERY ENDPOINT
 # ─────────────────────────────────────────────
 
 class QueryRequest(BaseModel):
@@ -84,13 +94,11 @@ def query(req: QueryRequest):
     """
     Takes a natural language question from the operator.
     Builds a context block from live ESG scores.
-    Calls Claude API with structured system prompt.
+    Calls Groq LLaMA-3.3-70B with structured system prompt.
     Returns severity → chain → explanation → action.
     """
-
-    # Build live context from ESG engine
-    all_zones   = score_all_zones()
-    top3        = all_zones[:3]
+    all_zones = score_all_zones()
+    top3      = all_zones[:3]
 
     context_lines = []
     for z in all_zones:
@@ -126,15 +134,15 @@ RESPONSE RULES:
   2. [zone] — [alert] — [score]/100
   3. [zone] — [alert] — [score]/100
 
-- If asked about a SPECIFIC zone (e.g. "tell me about Z6" or "what is happening in Malabar") → focus only on that zone, explain its signature chain, current step, confidence, SST trend, and recommended action in 3-4 sentences.
+- If asked about a SPECIFIC zone → focus only on that zone, explain its signature chain, current step, confidence, SST trend, and recommended action in 3-4 sentences.
 
-- If asked about a SPECIFIC event type (e.g. "any bloom risk?" or "oil slick?") → scan all zones for that signature, report which zones match and their confidence levels.
+- If asked about a SPECIFIC event type → scan all zones for that signature, report which zones match and their confidence levels.
 
-- If asked a COMPARISON (e.g. "compare Z1 and Z6") → compare both zones side by side on signature, step, confidence, and priority score.
+- If asked a COMPARISON → compare both zones side by side on signature, step, confidence, and priority score.
 
-- If asked HOW something works (e.g. "how does DTW work?" or "explain convergence scoring") → explain it clearly in plain language relevant to marine monitoring.
+- If asked HOW something works → explain it clearly in plain language relevant to marine monitoring.
 
-- If asked for a FORECAST (e.g. "what will happen in 48 hours?") → extrapolate from current slope and step position to predict likely next steps.
+- If asked for a FORECAST → extrapolate from current slope and step position to predict likely next steps.
 
 - Never give the ranked zones structure for specific zone questions.
 - Never repeat the same answer format for different question types.
@@ -161,30 +169,31 @@ Answer this specific question using the live data above. Match your response for
     response_text = message.choices[0].message.content
 
     return {
-        "question":    req.question,
-        "response":    response_text,
-        "top_zone":    ZONE_NAMES.get(top3[0]["zone_id"], top3[0]["zone_id"]),
-        "top_zone_id": top3[0]["zone_id"],
+        "question":     req.question,
+        "response":     response_text,
+        "top_zone":     ZONE_NAMES.get(top3[0]["zone_id"], top3[0]["zone_id"]),
+        "top_zone_id":  top3[0]["zone_id"],
         "top_priority": top3[0]["priority"],
-        "top_alert":   top3[0]["alert_level"],
-        "signature":   top3[0]["signature"],
+        "top_alert":    top3[0]["alert_level"],
+        "signature":    top3[0]["signature"],
         "current_step": top3[0]["current_step"],
-        "dtw_conf":    top3[0]["dtw_conf"],
+        "dtw_conf":     top3[0]["dtw_conf"],
     }
 
+
 # ─────────────────────────────────────────────
-# FEEDBACK ENDPOINT 
+# FEEDBACK ENDPOINT
 # ─────────────────────────────────────────────
 
 class FeedbackRequest(BaseModel):
-    zone_id:    str
-    signature:  str
-    step:       int
-    confidence: float
-    priority:   float
+    zone_id:     str
+    signature:   str
+    step:        int
+    confidence:  float
+    priority:    float
     alert_level: str
-    feedback:   str   # "confirm" or "false_positive"
-    question:   str
+    feedback:    str   # "confirm" or "false_positive"
+    question:    str
 
 FEEDBACK_FILE = "/tmp/feedback.csv"
 
@@ -192,7 +201,7 @@ FEEDBACK_FILE = "/tmp/feedback.csv"
 def submit_feedback(req: FeedbackRequest):
     """
     Logs operator feedback to CSV.
-    confirm       → true positive, reinforces chain weight
+    confirm        → true positive, reinforces chain weight
     false_positive → penalises offending step
     """
     file_exists = os.path.isfile(FEEDBACK_FILE)
@@ -219,7 +228,6 @@ def submit_feedback(req: FeedbackRequest):
             "question":    req.question,
         })
 
-    # Count totals for response
     tp_count = 0
     fp_count = 0
     if os.path.isfile(FEEDBACK_FILE):
@@ -232,10 +240,10 @@ def submit_feedback(req: FeedbackRequest):
                     fp_count += 1
 
     return {
-        "status":   "logged",
-        "feedback": req.feedback,
-        "zone_id":  req.zone_id,
-        "total_confirmed":      tp_count,
+        "status":                "logged",
+        "feedback":              req.feedback,
+        "zone_id":               req.zone_id,
+        "total_confirmed":       tp_count,
         "total_false_positives": fp_count,
         "message": f"{'Chain reinforced' if req.feedback == 'confirm' else 'Step penalised'}. System recalibrating."
     }
@@ -243,9 +251,9 @@ def submit_feedback(req: FeedbackRequest):
 
 @app.get("/feedback")
 def get_feedback():
-    """Returns all feedback entries — shown as live dataframe in demo."""
+    """Returns feedback stats — shown as live counters in the frontend."""
     if not os.path.isfile(FEEDBACK_FILE):
-        return {"entries": [], "total": 0, "tp": 0, "fp": 0}
+        return {"entries": [], "total": 0, "tp": 0, "fp": 0, "accuracy": 0}
 
     entries = []
     tp = fp = 0
@@ -259,9 +267,9 @@ def get_feedback():
                 fp += 1
 
     return {
-        "entries": entries,
-        "total":   len(entries),
-        "tp":      tp,
-        "fp":      fp,
+        "entries":  entries,
+        "total":    len(entries),
+        "tp":       tp,
+        "fp":       fp,
         "accuracy": round(tp / len(entries) * 100, 1) if entries else 0
     }
