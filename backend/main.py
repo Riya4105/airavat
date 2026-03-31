@@ -27,11 +27,16 @@ else:
     client = Groq(api_key=API_KEY)
 
 # ─────────────────────────────────────────────
-# EXISTING ROUTES
+# EXISTING ROUTES & ERROR HANDLERS
 # ─────────────────────────────────────────────
+
+@app.exception_handler(404)
+async def custom_404_handler(request, __):
+    return FileResponse(NOT_FOUND_PATH)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDEX_PATH = os.path.join(BASE_DIR, "..", "index.html")
+NOT_FOUND_PATH = os.path.join(BASE_DIR, "..", "404.html")
 
 @app.get("/")
 def root():
