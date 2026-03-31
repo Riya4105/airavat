@@ -1143,7 +1143,7 @@ function startSim() {
   drawMarkers();
 
   const btn = document.getElementById('btn-simulate');
-  btn.textContent = '&#9646; Stop simulation';
+  btn.innerHTML = '&#9646; Stop simulation';
   btn.style.background = '#300E05';
   btn.style.borderColor = '#ef4444';
   btn.style.color = '#F5C4B3';
@@ -1310,6 +1310,16 @@ function sendChat() {
       // AI response bubble
       const aiMsg = document.createElement('div');
       aiMsg.className   = 'chat-msg-ai';
+      
+      if (data.error === "API_KEY_NOT_FOUND") {
+          aiMsg.textContent = "BOT isn't available";
+          console.error("AIRAVAT Error: GROQ_API_KEY is not added in the environment. Please add it to enable AI features.");
+          messages.appendChild(aiMsg);
+          loading.remove();
+          sendBtn.disabled = false;
+          return;
+      }
+      
       aiMsg.textContent = data.response;
       messages.appendChild(aiMsg);
 
@@ -1405,7 +1415,7 @@ document.head.appendChild(tipStyle);
 // ─────────────────────────────────────────────
 // BOOT — load zones.json then draw
 // ─────────────────────────────────────────────
-const API = 'https://airavat-api.onrender.com';
+const API = 'http://127.0.0.1:8000';
 
 function loadZones() {
   fetch(`${API}/zones`)

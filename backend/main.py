@@ -2,6 +2,7 @@ import os
 import csv
 from datetime import datetime
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import Groq
@@ -17,15 +18,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+API_KEY = os.environ.get("GROQ_API_KEY")
+if not API_KEY:
+    print("\n[WARNING] GROQ_API_KEY is not added in the environment.")
+    print("AI Chatbot features will be disabled. Set the environment variable to enable them.\n")
+    client = None
+else:
+    client = Groq(api_key=API_KEY)
 
 # ─────────────────────────────────────────────
-# EXISTING ROUTES
+# EXISTING ROUTES & ERROR HANDLERS
 # ─────────────────────────────────────────────
+
+@app.exception_handler(404)
+async def custom_404_handler(request, __):
+    return FileResponse(NOT_FOUND_PATH)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INDEX_PATH = os.path.join(BASE_DIR, "..", "index.html")
+NOT_FOUND_PATH = os.path.join(BASE_DIR, "..", "404.html")
 
 @app.get("/")
 def root():
-    return {"status": "ok", "system": "AIRAVAT 3.0", "version": "1.0.0"}
+    return FileResponse(INDEX_PATH)
+
+@app.get("/zones.json")
+def get_zones_json():
+    return FileResponse(os.path.join(BASE_DIR, "..", "zones.json"))
 
 @app.get("/health")
 def health():
@@ -148,6 +167,18 @@ RESPONSE RULES:
 Operator question: {req.question}
 
 Answer this specific question using the live data above. Match your response format to the question type."""
+
+    if not client:
+        return {
+            "error": "API_KEY_NOT_FOUND",
+            "response": "BOT isn't available: GROQ_API_KEY is not configured on the backend.",
+            "top_zone": top3[0]["zone_id"],
+            "top_priority": top3[0]["priority"],
+            "top_alert": top3[0]["alert_level"],
+            "signature": top3[0]["signature"],
+            "current_step": top3[0]["current_step"],
+            "dtw_conf": top3[0]["dtw_conf"],
+        }
 
     message = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
